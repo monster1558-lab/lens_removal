@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>사렌즈 미취급 모니터링 대시보드</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1c2e;
+    --surface: #162236;
+    --surface2: #1a2d45;
+    --border: #1e3a5f;
+    --accent: #f87171;
+    --accent2: #fb923c;
+    --ok: #34d399;
+    --text: #cdd8e8;
+    --text-dim: #64748b;
+    --text-mid: #94a3b8;
+    --online: #38bdf8;
+    --store: #818cf8;
+    --grid-line: rgba(255,255,255,0.03);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    min-height: 100vh;
+    padding: 32px;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 32px;
+  }
+
+  .header-left h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+
+  .header-left .subtitle {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    margin-top: 4px;
+    letter-spacing: 0.5px;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,77,77,0.1);
+    border: 1px solid rgba(255,77,77,0.3);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    color: var(--accent);
+  }
+
+  .live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* KPI Row */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 22px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .kpi-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .kpi-card.online::after { background: var(--online); }
+  .kpi-card.store::after { background: var(--store); }
+  .kpi-card.total::after { background: var(--accent); }
+  .kpi-card.rate::after { background: var(--accent2); }
+  .kpi-card.effect::after { background: var(--ok); }
+
+  .kpi-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+
+  .kpi-value {
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: -2px;
+    line-height: 1;
+  }
+
+  .kpi-card.online .kpi-value { color: var(--online); }
+  .kpi-card.store .kpi-value { color: var(--store); }
+  .kpi-card.total .kpi-value { color: var(--accent); }
+  .kpi-card.rate .kpi-value { color: var(--accent2); }
+  .kpi-card.effect .kpi-value { color: var(--ok); }
+
+  .kpi-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .kpi-delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    margin-top: 4px;
+  }
+
+  .delta-up { color: var(--accent); }
+  .delta-down { color: var(--ok); }
+
+  /* Main grid */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px;
+  }
+
+  .card-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-title::before {
+    content: '';
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 2px;
+  }
+
+  .card.chart-card .card-title::before { background: var(--accent); }
+  .card.breakdown-card .card-title::before { background: var(--store); }
+  .card.ratio-card .card-title::before { background: var(--accent2); }
+
+  /* Bar chart */
+  .chart-area {
+    height: 220px;
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    padding-bottom: 28px;
+  }
+
+  .week-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .bar-container {
+    width: 100%;
+    display: flex;
+    gap: 4px;
+    align-items: flex-end;
+    height: 170px;
+  }
+
+  .bar-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100%;
+    gap: 3px;
+  }
+
+  .bar-val {
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+  }
+
+  .bar {
+    width: 100%;
+    border-radius: 4px 4px 0 0;
+    min-height: 4px;
+    transition: height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+  }
+
+  .bar.online-bar { background: linear-gradient(180deg, var(--online), rgba(96,165,250,0.4)); }
+  .bar.store-bar { background: linear-gradient(180deg, var(--store), rgba(167,139,250,0.4)); }
+
+  .bar-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    white-space: nowrap;
+  }
+
+  .bar-sublabel {
+    font-size: 9px;
+    color: #4b5563;
+    font-family: 'DM Mono', monospace;
+    text-align: center;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-mid);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 2px;
+  }
+
+  /* Breakdown table */
+  .breakdown-table {
+    width: 100%;
+  }
+
+  .breakdown-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+  }
+
+  .breakdown-row:last-child { border-bottom: none; }
+
+  .breakdown-name {
+    font-size: 12px;
+    color: var(--text-mid);
+  }
+
+  .breakdown-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: right;
+  }
+
+  .breakdown-rate {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    text-align: right;
+    min-width: 40px;
+  }
+
+  .breakdown-bar-bg {
+    grid-column: 1 / -1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: -6px;
+    margin-bottom: 4px;
+  }
+
+  .breakdown-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+
+  /* Ratio donut area */
+  .ratio-visual {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    padding: 8px 0;
+  }
+
+  .donut-wrap {
+    position: relative;
+    width: 110px;
+    height: 110px;
+  }
+
+  .donut-wrap svg {
+    transform: rotate(-90deg);
+  }
+
+  .donut-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .donut-center .donut-pct {
+    font-size: 22px;
+    font-weight: 900;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: -1px;
+  }
+
+  .donut-center .donut-lbl {
+    font-size: 9px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.3px;
+  }
+
+  .ratio-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .ratio-stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .ratio-stat-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .ratio-stat-val {
+    font-size: 18px;
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Bottom grid */
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  /* Trend table */
+  .trend-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .trend-table th {
+    text-align: left;
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0 8px 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .trend-table th:not(:first-child) { text-align: right; }
+
+  .trend-table td {
+    padding: 10px 8px 10px 0;
+    font-size: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    vertical-align: middle;
+  }
+
+  .trend-table td:not(:first-child) {
+    text-align: right;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .week-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text-mid);
+  }
+
+  .week-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent2);
+  }
+
+  .rate-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .rate-high { background: rgba(255,77,77,0.15); color: var(--accent); }
+  .rate-mid  { background: rgba(255,140,66,0.15); color: var(--accent2); }
+  .rate-low  { background: rgba(62,207,142,0.15); color: var(--ok); }
+
+  /* Notes section */
+  .notes-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px;
+  }
+
+  .notes-section .card-title::before {
+    background: var(--ok);
+  }
+
+  .notes-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .note-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+
+  .note-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .note-tag {
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .note-tag.survey { background: rgba(96,165,250,0.15); color: var(--online); }
+  .note-tag.store { background: rgba(167,139,250,0.15); color: var(--store); }
+
+  .note-week {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .note-body {
+    font-size: 12px;
+    color: var(--text-mid);
+    line-height: 1.6;
+  }
+
+  .note-placeholder {
+    font-size: 12px;
+    color: #2d3f55;
+    font-style: italic;
+    line-height: 1.6;
+  }
+
+  .add-note-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 10px;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--text-dim);
+    font-size: 12px;
+    font-family: 'Noto Sans KR', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 12px;
+  }
+
+  .add-note-btn:hover {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+
+  /* Section divider */
+  .section-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Week selector */
+  .week-selector {
+    display: flex;
+    gap: 6px;
+  }
+
+  .week-btn {
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .week-btn.active {
+    background: rgba(255,77,77,0.1);
+    border-color: rgba(255,77,77,0.4);
+    color: var(--accent);
+  }
+
+  /* Sparkline */
+  .sparkline-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  .sparkline-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    width: 40px;
+    flex-shrink: 0;
+  }
+
+  .sparkline-bar-row {
+    flex: 1;
+    display: flex;
+    gap: 3px;
+    align-items: flex-end;
+    height: 28px;
+  }
+
+  .sparkline-bar {
+    flex: 1;
+    border-radius: 2px 2px 0 0;
+    min-height: 3px;
+  }
+
+  .sparkline-val {
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    width: 30px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <h1>사렌즈 미취급 인입 모니터링</h1>
+    <div class="subtitle">KR ONLINE LAUNCH from 2025.02.13 ~</div>
+    <div class="subtitle">OPTICAL (ACETATE, METAL, COMBI)</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="week-selector">
+      <button class="week-btn">전체</button>
+      <button class="week-btn active">2주차</button>
+      <button class="week-btn">1주차</button>
+    </div>
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      LIVE TRACKING
+    </div>
+  </div>
+</div>
+
+<!-- KPI ROW -->
+<div class="kpi-row">
+  <div class="kpi-card total">
+    <div class="kpi-label">총 미삽입 (누계)</div>
+    <div class="kpi-value">177</div>
+    <div class="kpi-sub">온라인 51건 + 안경원 126건</div>
+    <div class="kpi-delta delta-up">▲ +165건 vs 1주차</div>
+  </div>
+  <div class="kpi-card online">
+    <div class="kpi-label">온라인 자사몰 (이번주)</div>
+    <div class="kpi-value">45</div>
+    <div class="kpi-sub">총 104건 중 · 2/13이후 43건</div>
+    <div class="kpi-delta delta-up">▲ +39건 vs 1주차</div>
+  </div>
+  <div class="kpi-card store">
+    <div class="kpi-label">안경원 (이번주)</div>
+    <div class="kpi-value">120</div>
+    <div class="kpi-sub">총 129건 중</div>
+    <div class="kpi-delta delta-up">▲ +114건 vs 1주차</div>
+  </div>
+  <div class="kpi-card rate">
+    <div class="kpi-label">온라인 미삽입률 (2주차)</div>
+    <div class="kpi-value">43<span style="font-size:18px;font-weight:400">%</span></div>
+    <div class="kpi-sub">안경원 93%</div>
+    <div class="kpi-delta delta-up">▲ +24%p vs 1주차</div>
+  </div>
+</div>
+
+<!-- MAIN GRID -->
+<div class="main-grid">
+
+  <!-- BAR CHART -->
+  <div class="card chart-card">
+    <div class="card-title">주차별 미삽입 건수 추이</div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--online)"></div>온라인 자사몰</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--store)"></div>안경원</div>
+    </div>
+    <div class="chart-area">
+      <!-- Week 1 -->
+      <div class="week-group">
+        <div class="bar-container">
+          <div class="bar-wrap">
+            <div class="bar-val" style="color:var(--online)">6</div>
+            <div class="bar online-bar" style="height:6px"></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-val" style="color:var(--store)">6</div>
+            <div class="bar store-bar" style="height:6px"></div>
+          </div>
+        </div>
+        <div class="bar-label">1주차</div>
+        <div class="bar-sublabel">2/18-19</div>
+      </div>
+      <!-- Week 2 -->
+      <div class="week-group">
+        <div class="bar-container">
+          <div class="bar-wrap">
+            <div class="bar-val" style="color:var(--online)">45</div>
+            <div class="bar online-bar" style="height:64px"></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-val" style="color:var(--store)">120</div>
+            <div class="bar store-bar" style="height:170px"></div>
+          </div>
+        </div>
+        <div class="bar-label">2주차</div>
+        <div class="bar-sublabel">2/23-27</div>
+      </div>
+      <!-- Placeholder weeks -->
+      <div class="week-group">
+        <div class="bar-container">
+          <div class="bar-wrap">
+            <div class="bar-val" style="color:#2d3340">-</div>
+            <div class="bar" style="height:0;background:transparent;"></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-val" style="color:#2d3340">-</div>
+            <div class="bar" style="height:0;background:transparent;"></div>
+          </div>
+        </div>
+        <div class="bar-label" style="color:#2d3f55">3주차</div>
+        <div class="bar-sublabel" style="color:#1e3a5f">대기중</div>
+      </div>
+      <div class="week-group">
+        <div class="bar-container">
+          <div class="bar-wrap"><div class="bar" style="height:0;background:transparent;"></div></div>
+          <div class="bar-wrap"><div class="bar" style="height:0;background:transparent;"></div></div>
+        </div>
+        <div class="bar-label" style="color:#2d3f55">4주차</div>
+        <div class="bar-sublabel" style="color:#1e3a5f">대기중</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RATIO CARD -->
+  <div class="card ratio-card">
+    <div class="card-title">채널별 비중 (2주차)</div>
+    <div class="ratio-visual">
+      <div class="donut-wrap">
+        <svg width="110" height="110" viewBox="0 0 110 110">
+          <circle cx="55" cy="55" r="40" fill="none" stroke="#1e3a5f" stroke-width="16"/>
+          <!-- Store: 120/165 = 72.7% => circumference = 2*PI*40 = 251.3, fill = 182.8 -->
+          <circle cx="55" cy="55" r="40" fill="none" stroke="var(--store)" stroke-width="16"
+            stroke-dasharray="182.8 251.3" stroke-linecap="round"/>
+          <!-- Online: 45/165 = 27.3% => fill = 68.6, offset = 182.8 -->
+          <circle cx="55" cy="55" r="40" fill="none" stroke="var(--online)" stroke-width="16"
+            stroke-dasharray="68.5 251.3" stroke-dashoffset="-182.8" stroke-linecap="round"/>
+        </svg>
+        <div class="donut-center">
+          <div class="donut-pct" style="color:var(--accent)">165</div>
+          <div class="donut-lbl">총 건수</div>
+        </div>
+      </div>
+      <div class="ratio-stats">
+        <div class="ratio-stat-item">
+          <div class="ratio-stat-label" style="color:var(--store)">안경원</div>
+          <div class="ratio-stat-val" style="color:var(--store)">120 <span style="font-size:13px;color:var(--text-dim)">72.7%</span></div>
+        </div>
+        <div class="ratio-stat-item">
+          <div class="ratio-stat-label" style="color:var(--online)">온라인</div>
+          <div class="ratio-stat-val" style="color:var(--online)">45 <span style="font-size:13px;color:var(--text-dim)">27.3%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
+      <div style="font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">채널별 미삽입률 (건수 대비)</div>
+      <div class="sparkline-row">
+        <div class="sparkline-label">온라인</div>
+        <div class="sparkline-bar-row">
+          <div class="sparkline-bar" style="height:9px;background:var(--online);opacity:0.4"></div>
+          <div class="sparkline-bar" style="height:28px;background:var(--online)"></div>
+        </div>
+        <div class="sparkline-val" style="color:var(--online)">43%</div>
+      </div>
+      <div class="sparkline-row">
+        <div class="sparkline-label">안경원</div>
+        <div class="sparkline-bar-row">
+          <div class="sparkline-bar" style="height:25px;background:var(--store);opacity:0.4"></div>
+          <div class="sparkline-bar" style="height:28px;background:var(--store)"></div>
+        </div>
+        <div class="sparkline-val" style="color:var(--store)">93%</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM GRID -->
+<div class="bottom-grid">
+
+  <!-- WEEKLY TABLE -->
+  <div class="card breakdown-card">
+    <div class="card-title">주차별 상세 데이터</div>
+    <table class="trend-table">
+      <thead>
+        <tr>
+          <th>주차</th>
+          <th>채널</th>
+          <th>총 접수</th>
+          <th>미삽입</th>
+          <th>미삽입률</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="week-tag"><span class="week-dot" style="background:#4b5563"></span>1주차</span></td>
+          <td><span style="font-size:11px;color:var(--online)">온라인</span></td>
+          <td>31</td>
+          <td>6</td>
+          <td><span class="rate-badge rate-low">19.4%</span></td>
+        </tr>
+        <tr>
+          <td></td>
+          <td><span style="font-size:11px;color:var(--store)">안경원</span></td>
+          <td>7</td>
+          <td>6</td>
+          <td><span class="rate-badge rate-high">85.7%</span></td>
+        </tr>
+        <tr style="border-top:1px solid var(--border)">
+          <td><span class="week-tag"><span class="week-dot"></span>2주차</span></td>
+          <td><span style="font-size:11px;color:var(--online)">온라인</span></td>
+          <td>104</td>
+          <td>45</td>
+          <td><span class="rate-badge rate-mid">43.3%</span></td>
+        </tr>
+        <tr>
+          <td></td>
+          <td><span style="font-size:11px;color:var(--store)">안경원</span></td>
+          <td>129</td>
+          <td>120</td>
+          <td><span class="rate-badge rate-high">93.0%</span></td>
+        </tr>
+        <tr style="border-top:1px solid var(--border);opacity:0.3">
+          <td><span class="week-tag"><span class="week-dot" style="background:#2d3340"></span>3주차</span></td>
+          <td colspan="4" style="color:#2d3f55;font-size:11px;font-family:'DM Mono',monospace;">데이터 대기중...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ONLINE TREND: 시행 이전/이후 분리 -->
+  <div class="card">
+    <div class="card-title" style="">온라인 — 시행 전후 분리 현황</div>
+    <div style="font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace;margin-bottom:14px;">기준: 2025.02.13 시행일</div>
+
+    <div class="breakdown-table">
+      <div class="breakdown-row">
+        <div class="breakdown-name">1주차 · 시행 이후 (2/13~)</div>
+        <div class="breakdown-count" style="color:var(--accent)">3건</div>
+        <div class="breakdown-rate">/ 6건</div>
+      </div>
+      <div class="breakdown-bar-bg"><div class="breakdown-bar-fill" style="width:50%;background:var(--online)"></div></div>
+
+      <div class="breakdown-row">
+        <div class="breakdown-name">2주차 · 시행 이후 (2/13~)</div>
+        <div class="breakdown-count" style="color:var(--accent)">43건</div>
+        <div class="breakdown-rate">/ 45건</div>
+      </div>
+      <div class="breakdown-bar-bg"><div class="breakdown-bar-fill" style="width:95.6%;background:var(--online)"></div></div>
+
+      <div style="margin-top:14px;padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace;margin-bottom:6px;">📌 시행 이후 기여도</div>
+        <div style="font-size:20px;font-weight:900;font-family:'DM Mono',monospace;color:var(--accent2)">46건 <span style="font-size:12px;color:var(--text-dim)">/ 51건 총계</span></div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">전체 온라인 미삽입의 <strong style="color:var(--accent2)">90.2%</strong>가 시행 이후 접수</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- REPAIR ROUTING SECTION -->
+<div style="margin-bottom:24px;">
+  <div class="section-label" style="margin-bottom:16px;">본사 외 수리 전환 효과 (2주차 기준)</div>
+
+  <!-- 효과 KPI 추가 행 -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px;">
+    <div class="kpi-card effect">
+      <div class="kpi-label">본사 외 처리 전환량 (누계)</div>
+      <div class="kpi-value">212</div>
+      <div class="kpi-sub">1주차 39건 + 2주차 173건</div>
+      <div class="kpi-delta delta-down">✅ 본사 부담 절감</div>
+    </div>
+    <div class="kpi-card" style="border-color:var(--border);">
+      <div class="kpi-label" style="color:var(--text-dim);">본사 직접 수리 (누계)</div>
+      <div class="kpi-value" style="color:var(--accent);font-size:36px;font-weight:900;letter-spacing:-2px;line-height:1;">82</div>
+      <div class="kpi-sub">1주차 19건 + 2주차 63건</div>
+      <div class="kpi-delta" style="color:var(--accent2);">전체 294건 중 27.9%</div>
+    </div>
+    <div class="kpi-card effect" style="">
+      <div class="kpi-label">외부 전환율 추이</div>
+      <div class="kpi-value">67<span style="font-size:18px;font-weight:400">%</span></div>
+      <div class="kpi-sub">1주차 → <span style="color:var(--ok);font-weight:700;">73.3%</span> 2주차 ↑</div>
+      <div class="kpi-delta delta-down">✅ +6.1%p 개선</div>
+    </div>
+  </div>
+
+  <!-- 처리 방식 상세 -->
+  <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:16px;">
+
+    <!-- 스택 바 시각화 -->
+    <div class="card" style="padding:22px;">
+      <div class="card-title" style="margin-bottom:20px;">
+        <span style="width:8px;height:8px;border-radius:2px;background:var(--ok);display:inline-block;"></span>
+        수리 처리 방식 구성
+      </div>
+
+      <!-- 전체 스택 바 -->
+      <div style="margin-bottom:20px;">
+        <div style="font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">1주차 전체 58건</div>
+        <div style="display:flex;height:24px;border-radius:6px;overflow:hidden;gap:2px;">
+          <!-- 본사: 19/58 = 32.8% -->
+          <div style="width:32.8%;background:var(--accent);display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:10px;font-family:'DM Mono',monospace;font-weight:700;color:white;">32.8%</span>
+          </div>
+          <!-- 외부: 39/58 = 67.2% -->
+          <div style="width:67.2%;background:rgba(52,211,153,0.7);display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:10px;font-family:'DM Mono',monospace;font-weight:700;color:#0f1c2e;">67.2%</span>
+          </div>
+        </div>
+      </div>
+      <div style="margin-bottom:20px;">
+        <div style="font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">2주차 전체 236건</div>
+        <div style="display:flex;height:24px;border-radius:6px;overflow:hidden;gap:2px;">
+          <!-- 본사: 63/236 = 26.7% -->
+          <div style="width:26.7%;background:var(--accent);display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:10px;font-family:'DM Mono',monospace;font-weight:700;color:white;">26.7%</span>
+          </div>
+          <!-- 외부: 173/236 = 73.3% -->
+          <div style="width:73.3%;background:var(--ok);display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:10px;font-family:'DM Mono',monospace;font-weight:700;color:#0f1c2e;">73.3%</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:16px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-mid);font-family:'DM Mono',monospace;">
+          <div style="width:8px;height:8px;border-radius:2px;background:var(--accent);flex-shrink:0;"></div>본사 직접
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-mid);font-family:'DM Mono',monospace;">
+          <div style="width:8px;height:8px;border-radius:2px;background:var(--ok);flex-shrink:0;"></div>협력업체·3PL
+        </div>
+      </div>
+
+      <!-- 방식별 행 -->
+      <div style="display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--border);padding-top:16px;">
+        <!-- 본사 -->
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+            <span style="font-size:12px;color:var(--text-mid);">🏢 본사 직접 수리</span>
+            <span style="font-size:13px;font-family:'DM Mono',monospace;font-weight:600;color:var(--accent);">82건 <span style="font-size:11px;color:var(--text-dim);font-weight:400;">27.9%</span></span>
+          </div>
+          <div style="height:4px;background:var(--border);border-radius:2px;">
+            <div style="width:27.9%;height:100%;background:var(--accent);border-radius:2px;"></div>
+          </div>
+        </div>
+        <!-- 협력업체+3PL -->
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+            <span style="font-size:12px;color:var(--text-mid);">🔄 협력업체·3PL 외부 처리</span>
+            <span style="font-size:13px;font-family:'DM Mono',monospace;font-weight:600;color:var(--ok);">212건 <span style="font-size:11px;color:var(--text-dim);font-weight:400;">72.1%</span></span>
+          </div>
+          <div style="height:4px;background:var(--border);border-radius:2px;">
+            <div style="width:72.1%;height:100%;background:var(--ok);border-radius:2px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 정책 효과 해석 카드 -->
+    <div class="card" style="padding:22px;display:flex;flex-direction:column;gap:14px;">
+      <div class="card-title">
+        <span style="width:8px;height:8px;border-radius:2px;background:var(--accent2);display:inline-block;"></span>
+        정책 효과 해석
+      </div>
+
+      <div style="background:rgba(62,207,142,0.06);border:1px solid rgba(62,207,142,0.2);border-radius:8px;padding:14px;">
+        <div style="font-size:10px;color:var(--ok);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">✅ 핵심 효과 (누계)</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.6;">
+          2주간 총 <strong style="color:var(--ok);">212건(72.1%)</strong>을 본사 수리 없이 외부 처리 전환 성공
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text-dim);">1주차 39건 + 2주차 173건 / 전체 294건</div>
+      </div>
+
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;">
+        <div style="font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">주차별 전환율 추이</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--ok);width:32px;">1주차</span>
+            <div style="flex:1;height:6px;background:var(--border);border-radius:3px;">
+              <div style="width:67.2%;height:100%;background:var(--ok);border-radius:3px;"></div>
+            </div>
+            <span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--ok);font-weight:600;">67.2%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--ok);width:32px;">2주차</span>
+            <div style="flex:1;height:6px;background:var(--border);border-radius:3px;">
+              <div style="width:73.3%;height:100%;background:var(--ok);border-radius:3px;"></div>
+            </div>
+            <span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--ok);font-weight:600;">73.3%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;opacity:0.3;">
+            <span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text-dim);width:32px;">3주차</span>
+            <div style="flex:1;height:6px;background:var(--border);border-radius:3px;"></div>
+            <span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text-dim);">대기중</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:11px;color:var(--text-dim);line-height:1.6;padding:0 2px;">
+        💡 미삽입 인입 건수가 늘수록 본사 직접 수리 부담이 감소하는 구조. 외부 전환율 추이를 주차별로 모니터링.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NOTES SECTION -->
+<div class="notes-section">
+  <div class="card-title" style="color:var(--text-dim);">고객 설문 · 현장 특이사항 기록</div>
+  <div class="section-label">접수된 내용</div>
+  <div class="notes-grid">
+    <div class="note-card">
+      <div class="note-meta">
+        <span class="note-tag survey">설문</span>
+        <span class="note-week">1주차</span>
+      </div>
+      <div class="note-placeholder">설문 결과를 여기에 입력해 주세요.</div>
+    </div>
+    <div class="note-card">
+      <div class="note-meta">
+        <span class="note-tag store">안경원</span>
+        <span class="note-week">1주차</span>
+      </div>
+      <div class="note-placeholder">안경원 특이사항을 여기에 입력해 주세요.</div>
+    </div>
+    <div class="note-card">
+      <div class="note-meta">
+        <span class="note-tag survey">설문</span>
+        <span class="note-week">2주차</span>
+      </div>
+      <div class="note-placeholder">설문 결과를 여기에 입력해 주세요.</div>
+    </div>
+    <div class="note-card">
+      <div class="note-meta">
+        <span class="note-tag store">안경원</span>
+        <span class="note-week">2주차</span>
+      </div>
+      <div class="note-placeholder">안경원 특이사항을 여기에 입력해 주세요.</div>
+    </div>
+  </div>
+  <button class="add-note-btn">+ 새 주차 노트 추가</button>
+</div>
+
+</body>
+</html>
